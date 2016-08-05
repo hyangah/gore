@@ -1,4 +1,4 @@
-package main
+package session
 
 import (
 	"strings"
@@ -6,11 +6,12 @@ import (
 	"github.com/motemen/gore/gocode"
 )
 
-func (s *Session) completeWord(line string, pos int) (string, []string, string) {
+// CompleteWord completes the command in the specified line,pos.
+func (s *Session) CompleteWord(line string, pos int) (pre string, candidates []string, post string) {
 	if strings.HasPrefix(line, ":") {
 		// complete commands
 		if !strings.Contains(line[0:pos], " ") {
-			pre, post := line[0:pos], line[pos:]
+			pre, post = line[0:pos], line[pos:]
 
 			result := []string{}
 			for _, command := range commands {

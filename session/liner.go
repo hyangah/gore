@@ -1,4 +1,4 @@
-package main
+package session
 
 import (
 	"bytes"
@@ -16,19 +16,21 @@ const (
 	indent         = "    "
 )
 
-type contLiner struct {
+// ContLiner is a simple line editor for prompt.
+type ContLiner struct {
 	*liner.State
 	buffer string
 	depth  int
 }
 
-func newContLiner() *contLiner {
+// NewContLiner returns a new ContLiner instance.
+func NewContLiner() *ContLiner {
 	rl := liner.NewLiner()
 	rl.SetCtrlCAborts(true)
-	return &contLiner{State: rl}
+	return &ContLiner{State: rl}
 }
 
-func (cl *contLiner) promptString() string {
+func (cl *ContLiner) promptString() string {
 	if cl.buffer != "" {
 		return promptContinue + strings.Repeat(indent, cl.depth)
 	}
@@ -36,7 +38,7 @@ func (cl *contLiner) promptString() string {
 	return promptDefault
 }
 
-func (cl *contLiner) Prompt() (string, error) {
+func (cl *ContLiner) Prompt() (string, error) {
 	line, err := cl.State.Prompt(cl.promptString())
 	if err == io.EOF {
 		if cl.buffer != "" {
@@ -63,19 +65,19 @@ func (cl *contLiner) Prompt() (string, error) {
 	return cl.buffer, err
 }
 
-func (cl *contLiner) Accepted() {
+func (cl *ContLiner) Accepted() {
 	cl.State.AppendHistory(cl.buffer)
 	cl.buffer = ""
 }
 
-func (cl *contLiner) Clear() {
+func (cl *ContLiner) Clear() {
 	cl.buffer = ""
 	cl.depth = 0
 }
 
 var errUnmatchedBraces = fmt.Errorf("unmatched braces")
 
-func (cl *contLiner) Reindent() error {
+func (cl *ContLiner) Reindent() error {
 	oldDepth := cl.depth
 	cl.depth = cl.countDepth()
 
@@ -98,7 +100,7 @@ func (cl *contLiner) Reindent() error {
 	return nil
 }
 
-func (cl *contLiner) countDepth() int {
+func (cl *ContLiner) countDepth() int {
 	reader := bytes.NewBufferString(cl.buffer)
 	sc := new(scanner.Scanner)
 	sc.Init(reader)
