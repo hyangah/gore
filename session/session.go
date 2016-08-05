@@ -244,6 +244,30 @@ func (s *Session) source(space bool) (string, error) {
 	return buf.String(), err
 }
 
+func (s *Session) Reset() error {
+	var initialSource string
+	for _, pp := range printerPkgs {
+		_, err := s.types.Importer.Import(pp.path)
+		if err == nil {
+			initialSource = fmt.Sprintf(initialSourceTemplate, pp.path, pp.code)
+			break
+		}
+		debugf("could not import %q: %s", pp.path, err)
+	}
+
+	if initialSource == "" {
+		return fmt.Errorf(`Could not load pretty printing package (even "fmt"; something is wrong)`)
+	}
+	file, err := parser.ParseFile(s.fset, "gore_session.go", initialSource, parser.Mode(0))
+	if err != nil {
+		return err
+	}
+
+	s.file = file
+	s.mainBody = s.mainFunc().Body
+	return nil
+}
+
 func (s *Session) reset() error {
 	source, err := s.source(false)
 	if err != nil {

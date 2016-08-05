@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 
@@ -108,15 +109,24 @@ func main() {
 			continue
 		}
 
+		c := make(chan os.Signal, 1)
+		go func() { <-c }()
+		signal.Notify(c, os.Interrupt)
 		err = s.Eval(in)
 		if err != nil {
 			if err == session.ErrContinue {
+				signal.Stop(c)
+				close(c)
 				continue
 			} else if err == session.ErrQuit {
+				signal.Stop(c)
+				close(c)
 				break
 			}
 			fmt.Println(err)
 		}
+		signal.Stop(c)
+		close(c)
 		rl.Accepted()
 	}
 

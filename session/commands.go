@@ -15,6 +15,7 @@ import (
 	"go/ast"
 	"go/build"
 	"go/types"
+
 	"golang.org/x/tools/go/ast/astutil"
 )
 
@@ -55,6 +56,11 @@ func init() {
 			document: "write out current source",
 		},
 		{
+			name:     "reset",
+			action:   actionReset,
+			document: "reset",
+		},
+		{
 			name:     "doc",
 			action:   actionDoc,
 			complete: completeDoc,
@@ -72,6 +78,10 @@ func init() {
 			document: "quit the session",
 		},
 	}
+}
+
+func actionReset(s *Session, arg string) error {
+	return s.Reset()
 }
 
 func actionImport(s *Session, arg string) error {
@@ -274,7 +284,7 @@ func actionDoc(s *Session, in string) error {
 
 		p := pkgPath
 		if objName != "" {
-			p += "."+objName
+			p += "." + objName
 		}
 		args = append(args, p)
 	}
