@@ -251,32 +251,35 @@ func actionDoc(s *Session, in string) error {
 		_, docObj = mainScope.LookupParent(ident.Name, ident.NamePos)
 	}
 
+	args := []string{"doc"}
 	if docObj == nil {
-		return fmt.Errorf("cannot determine the document location")
-	}
-
-	debugf("doc :: obj=%#v", docObj)
-
-	var pkgPath, objName string
-	if pkgName, ok := docObj.(*types.PkgName); ok {
-		pkgPath = pkgName.Imported().Path()
+		// fall back to `go doc` command's argument handling.
+		args = append(args, in)
 	} else {
-		if pkg := docObj.Pkg(); pkg != nil {
-			pkgPath = pkg.Path()
+		debugf("doc :: obj=%#v", docObj)
+
+		var pkgPath, objName string
+		if pkgName, ok := docObj.(*types.PkgName); ok {
+			pkgPath = pkgName.Imported().Path()
 		} else {
-			pkgPath = "builtin"
+			if pkg := docObj.Pkg(); pkg != nil {
+				pkgPath = pkg.Path()
+			} else {
+				pkgPath = "builtin"
+			}
+			objName = docObj.Name()
 		}
-		objName = docObj.Name()
+
+		debugf("doc :: %q %q", pkgPath, objName)
+
+		p := pkgPath
+		if objName != "" {
+			p += "."+objName
+		}
+		args = append(args, p)
 	}
 
-	debugf("doc :: %q %q", pkgPath, objName)
-
-	args := []string{pkgPath}
-	if objName != "" {
-		args = append(args, objName)
-	}
-
-	godoc := exec.Command("godoc", args...)
+	godoc := exec.Command("go", args...)
 	godoc.Stderr = os.Stderr
 
 	// TODO just use PAGER?
