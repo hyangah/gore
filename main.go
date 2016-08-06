@@ -11,6 +11,9 @@ Some special functionalities are provided as commands, which starts with colons:
 	:import <package path>  Imports a package
 	:print                  Prints current source code
 	:write [<filename>]     Writes out current code
+	:read [<filename>]	Reads in the source code
+	:reset			Resets the session
+	:run			Runs the current source code
 	:doc <target>           Shows documentation for an expression or package name given
 	:help                   Lists commands
 	:quit                   Quit the session
@@ -42,27 +45,22 @@ var (
 func main() {
 	flag.Parse()
 
-	s, err := session.NewSession()
-	if err != nil {
-		panic(err)
+	var extFiles []string
+	if *flagExtFiles != "" {
+		extFiles = strings.Split(*flagExtFiles, ",")
+	}
+
+	s := &session.Session{
+		AutoImports: *flagAutoImport,
+		DotPkg:      *flagPkg,
+		ExtFiles:    extFiles,
+	}
+	if err := s.Init(); err != nil {
+		errorf("failed to prepare a session: %v", err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("gore version %s  :help for help\n", version)
-
-	s.SetAutoImports(*flagAutoImport)
-
-	if *flagExtFiles != "" {
-		extFiles := strings.Split(*flagExtFiles, ",")
-		s.IncludeFiles(extFiles)
-	}
-
-	if *flagPkg != "" {
-		err := s.IncludePackage(*flagPkg)
-		if err != nil {
-			errorf("-pkg: %s", err)
-			os.Exit(1)
-		}
-	}
 
 	rl := session.NewContLiner()
 	defer rl.Close()

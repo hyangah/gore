@@ -14,7 +14,7 @@ import (
 func (s *Session) doQuickFix() error {
 	const maxAttempts = 10
 
-	s.reset()
+	s.reload()
 
 quickFixAttempt:
 	for i := 0; i < maxAttempts; i++ {

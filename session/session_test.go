@@ -5,7 +5,7 @@ import (
 )
 
 func TestRun_import(t *testing.T) {
-	s, err := NewSession()
+	s, err := newSession()
 	noError(t, err)
 
 	codes := []string{
@@ -21,7 +21,7 @@ func TestRun_import(t *testing.T) {
 }
 
 func TestRun_QuickFix_evaluated_but_not_used(t *testing.T) {
-	s, err := NewSession()
+	s, err := newSession()
 	noError(t, err)
 
 	codes := []string{
@@ -40,7 +40,7 @@ func TestRun_QuickFix_evaluated_but_not_used(t *testing.T) {
 }
 
 func TestRun_QuickFix_used_as_value(t *testing.T) {
-	s, err := NewSession()
+	s, err := newSession()
 	noError(t, err)
 
 	codes := []string{
@@ -56,10 +56,9 @@ func TestRun_QuickFix_used_as_value(t *testing.T) {
 }
 
 func TestRun_FixImports(t *testing.T) {
-	s, err := NewSession()
+	s := &Session{AutoImports: true}
+	err := s.Init()
 	noError(t, err)
-
-	s.SetAutoImports(true)
 
 	codes := []string{
 		`filepath.Join("a", "b")`,
@@ -72,10 +71,10 @@ func TestRun_FixImports(t *testing.T) {
 }
 
 func TestIncludePackage(t *testing.T) {
-	s, err := NewSession()
+	s, err := newSession()
 	noError(t, err)
 
-	err = s.IncludePackage("github.com/motemen/gore/gocode")
+	err = s.includePackage("github.com/motemen/gore/gocode")
 	noError(t, err)
 
 	err = s.Eval("Completer{}")
@@ -83,7 +82,7 @@ func TestIncludePackage(t *testing.T) {
 }
 
 func TestRun_Copy(t *testing.T) {
-	s, err := NewSession()
+	s, err := newSession()
 	noError(t, err)
 
 	codes := []string{
@@ -102,7 +101,7 @@ func TestRun_Copy(t *testing.T) {
 }
 
 func TestRun_Const(t *testing.T) {
-	s, err := NewSession()
+	s, err := newSession()
 	noError(t, err)
 
 	codes := []string{

@@ -11,7 +11,7 @@ func TestSession_completeCode(t *testing.T) {
 		t.Skipf("gocode unavailable")
 	}
 
-	s, err := NewSession()
+	s, err := newSession()
 	noError(t, err)
 
 	err = actionImport(s, "fmt")

@@ -11,7 +11,7 @@ func TestActionDoc(t *testing.T) {
 		t.Skipf("godoc not found: %s", err)
 	}
 
-	s, err := NewSession()
+	s, err := newSession()
 	noError(t, err)
 
 	err = actionImport(s, "encoding/json")

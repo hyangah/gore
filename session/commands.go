@@ -30,7 +30,6 @@ type command struct {
 // TODO
 // - :edit
 // - :undo
-// - :reset
 // - :type
 var commands []command
 
@@ -56,9 +55,21 @@ func init() {
 			document: "write out current source",
 		},
 		{
+			name:     "read",
+			action:   actionRead,
+			complete: nil,
+			arg:      "[<file>]",
+			document: "read in the input file",
+		},
+		{
 			name:     "reset",
 			action:   actionReset,
 			document: "reset",
+		},
+		{
+			name:     "run",
+			action:   actionRun,
+			document: "run",
 		},
 		{
 			name:     "doc",
@@ -81,7 +92,18 @@ func init() {
 }
 
 func actionReset(s *Session, arg string) error {
-	return s.Reset()
+	return s.reset()
+}
+
+func actionRun(s *Session, arg string) error {
+	return s.Run()
+}
+
+func actionRead(s *Session, arg string) error {
+	if arg == "" {
+		return fmt.Errorf("arg required")
+	}
+	return s.includeFile(arg, true)
 }
 
 func actionImport(s *Session, arg string) error {

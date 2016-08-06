@@ -28,6 +28,17 @@ import (
 const printerName = "__gore_p"
 
 type Session struct {
+	// Parameters used by Init.
+
+	AutoImports bool     // Whether to enable auto imports.
+	ExtFiles    []string // List of files to include during Init.
+	DotPkg      string   // If not empty, the session dot import the package.
+
+	session // internal state.
+}
+
+type session struct {
+	// fields computed in init and reset in reset.
 	filePath       string
 	file           *ast.File
 	fset           *token.FileSet
@@ -35,7 +46,6 @@ type Session struct {
 	typeInfo       types.Info
 	extraFilePaths []string
 	extraFiles     []*ast.File
-	autoImports    bool
 
 	mainBody         *ast.BlockStmt
 	storedBodyLength int
@@ -67,19 +77,22 @@ var printerPkgs = []struct {
 	{"fmt", `fmt.Printf("%#v\n", x)`},
 }
 
-func NewSession() (*Session, error) {
+func (s *Session) reset() error {
+	s.session = session{}
+	return s.Init()
+}
+
+func newSession() (*Session, error) {
+	s := &Session{}
+	return s, s.Init()
+}
+func (s *Session) Init() error {
 	var err error
-
-	s := &Session{
-		fset: token.NewFileSet(),
-		types: &types.Config{
-			Importer: importer.Default(),
-		},
-	}
-
+	s.fset = token.NewFileSet()
+	s.types = &types.Config{Importer: importer.Default()}
 	s.filePath, err = tempFile()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var initialSource string
@@ -93,17 +106,30 @@ func NewSession() (*Session, error) {
 	}
 
 	if initialSource == "" {
-		return nil, fmt.Errorf(`Could not load pretty printing package (even "fmt"; something is wrong)`)
+		return fmt.Errorf(`Could not load pretty printing package (even "fmt"; something is wrong)`)
 	}
 
 	s.file, err = parser.ParseFile(s.fset, "gore_session.go", initialSource, parser.Mode(0))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	s.mainBody = s.mainFunc().Body
 
-	return s, nil
+	if len(s.ExtFiles) > 0 {
+		if err := s.includeFiles(s.ExtFiles); err != nil {
+			panic("here" + err.Error())
+			return err
+		}
+	}
+	if s.DotPkg != "" {
+		if err := s.includePackage(s.DotPkg); err != nil {
+			panic("here" + err.Error())
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *Session) mainFunc() *ast.FuncDecl {
@@ -244,31 +270,7 @@ func (s *Session) source(space bool) (string, error) {
 	return buf.String(), err
 }
 
-func (s *Session) Reset() error {
-	var initialSource string
-	for _, pp := range printerPkgs {
-		_, err := s.types.Importer.Import(pp.path)
-		if err == nil {
-			initialSource = fmt.Sprintf(initialSourceTemplate, pp.path, pp.code)
-			break
-		}
-		debugf("could not import %q: %s", pp.path, err)
-	}
-
-	if initialSource == "" {
-		return fmt.Errorf(`Could not load pretty printing package (even "fmt"; something is wrong)`)
-	}
-	file, err := parser.ParseFile(s.fset, "gore_session.go", initialSource, parser.Mode(0))
-	if err != nil {
-		return err
-	}
-
-	s.file = file
-	s.mainBody = s.mainFunc().Body
-	return nil
-}
-
-func (s *Session) reset() error {
+func (s *Session) reload() error {
 	source, err := s.source(false)
 	if err != nil {
 		return err
@@ -330,7 +332,7 @@ func (s *Session) Eval(in string) error {
 		}
 	}
 
-	if s.autoImports {
+	if s.AutoImports {
 		s.fixImports()
 	}
 	s.doQuickFix()
@@ -362,30 +364,35 @@ func (s *Session) restoreMainBody() {
 	s.mainBody.List = s.mainBody.List[0:s.storedBodyLength]
 }
 
-// IncludeFiles imports packages and funcsions from multiple golang source
-func (s *Session) IncludeFiles(files []string) {
+// includeFiles imports packages and funcsions from multiple golang source
+func (s *Session) includeFiles(files []string) error {
 	for _, file := range files {
-		s.includeFile(file)
+		if err := s.includeFile(file, false); err != nil {
+			return fmt.Errorf("%q: %v", file, err)
+		}
 	}
+	return nil
 }
 
-func (s *Session) includeFile(file string) {
+func (s *Session) includeFile(file string, includingMain bool) error {
 	content, err := ioutil.ReadFile(file)
 	if err != nil {
 		errorf("%s", err)
-		return
+		return err
 	}
 
 	if err = s.importPackages(content); err != nil {
 		errorf("%s", err)
-		return
+		return err
 	}
 
-	if err = s.importFile(content); err != nil {
+	if err = s.importFile(content, includingMain); err != nil {
 		errorf("%s", err)
+		return err
 	}
 
 	infof("added file %s", file)
+	return nil
 }
 
 // importPackages includes packages defined on external file into main file
@@ -404,7 +411,7 @@ func (s *Session) importPackages(src []byte) error {
 }
 
 // importFile adds external golang file to goRun target to use its function
-func (s *Session) importFile(src []byte) error {
+func (s *Session) importFile(src []byte, includingMain bool) error {
 	// Don't need to same directory
 	tmp, err := ioutil.TempFile(filepath.Dir(s.filePath), "gore_extarnal_")
 	if err != nil {
@@ -421,17 +428,32 @@ func (s *Session) importFile(src []byte) error {
 	// rewrite to package main
 	f.Name.Name = "main"
 
+	// remove func __gore_p(...)
 	// remove func main()
+	fix := false
 	for i, decl := range f.Decls {
 		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
 			if isNamedIdent(funcDecl.Name, "main") {
+				if includingMain {
+					// replace
+					s.mainFunc().Body = funcDecl.Body
+					s.mainBody = funcDecl.Body
+				}
 				f.Decls = append(f.Decls[0:i], f.Decls[i+1:]...)
 				// main() removed from this file, we may have to
 				// remove some unsed import's
-				quickfix.QuickFix(s.fset, []*ast.File{f})
-				break
+				fix = true
+				continue
+			}
+			if isNamedIdent(funcDecl.Name, "__gore_p") {
+				f.Decls = append(f.Decls[0:i], f.Decls[i+1:]...)
+				fix = true
+				continue
 			}
 		}
+	}
+	if fix {
+		quickfix.QuickFix(s.fset, []*ast.File{f})
 	}
 
 	out, err := os.Create(ext)
@@ -475,8 +497,8 @@ func (s *Session) fixImports() error {
 	return nil
 }
 
-// IncludePackage adds the specified package as a '.' import so the session runs as if it is running in the package.
-func (s *Session) IncludePackage(path string) error {
+// includePackage adds the specified package as a '.' import so the session runs as if it is running in the package.
+func (s *Session) includePackage(path string) error {
 	pkg, err := build.Import(path, ".", 0)
 	if err != nil {
 		var err2 error
@@ -490,12 +512,5 @@ func (s *Session) IncludePackage(path string) error {
 	for i, f := range pkg.GoFiles {
 		files[i] = filepath.Join(pkg.Dir, f)
 	}
-	s.IncludeFiles(files)
-
-	return nil
-}
-
-// SetAutoImports configures whether to auto format and import the generated code.
-func (s *Session) SetAutoImports(enable bool) {
-	s.autoImports = enable
+	return s.includeFiles(files)
 }
