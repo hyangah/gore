@@ -32,7 +32,7 @@ type Session struct {
 
 	AutoImports bool     // Whether to enable auto imports.
 	ExtFiles    []string // List of files to include during Init.
-	DotPkg      string   // If not empty, the session dot import the package.
+	Pkg         string   // If not empty, the session runs in the package.
 
 	session // internal state.
 }
@@ -118,13 +118,11 @@ func (s *Session) Init() error {
 
 	if len(s.ExtFiles) > 0 {
 		if err := s.includeFiles(s.ExtFiles); err != nil {
-			panic("here" + err.Error())
 			return err
 		}
 	}
-	if s.DotPkg != "" {
-		if err := s.includePackage(s.DotPkg); err != nil {
-			panic("here" + err.Error())
+	if s.Pkg != "" {
+		if err := s.includePackage(s.Pkg); err != nil {
 			return err
 		}
 	}
@@ -430,29 +428,29 @@ func (s *Session) importFile(src []byte, includingMain bool) error {
 
 	// remove func __gore_p(...)
 	// remove func main()
-	fix := false
+	needFix := false
 	for i, decl := range f.Decls {
 		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
 			if isNamedIdent(funcDecl.Name, "main") {
+				f.Decls = append(f.Decls[0:i], f.Decls[i+1:]...)
 				if includingMain {
 					// replace
 					s.mainFunc().Body = funcDecl.Body
 					s.mainBody = funcDecl.Body
 				}
-				f.Decls = append(f.Decls[0:i], f.Decls[i+1:]...)
 				// main() removed from this file, we may have to
 				// remove some unsed import's
-				fix = true
+				needFix = true
 				continue
 			}
 			if isNamedIdent(funcDecl.Name, "__gore_p") {
 				f.Decls = append(f.Decls[0:i], f.Decls[i+1:]...)
-				fix = true
+				needFix = true
 				continue
 			}
 		}
 	}
-	if fix {
+	if needFix {
 		quickfix.QuickFix(s.fset, []*ast.File{f})
 	}
 

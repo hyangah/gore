@@ -52,7 +52,7 @@ func main() {
 
 	s := &session.Session{
 		AutoImports: *flagAutoImport,
-		DotPkg:      *flagPkg,
+		Pkg:         *flagPkg,
 		ExtFiles:    extFiles,
 	}
 	if err := s.Init(); err != nil {

@@ -96,6 +96,10 @@ func actionReset(s *Session, arg string) error {
 }
 
 func actionRun(s *Session, arg string) error {
+	if s.AutoImports {
+		s.fixImports()
+	}
+	s.doQuickFix()
 	return s.Run()
 }
 
