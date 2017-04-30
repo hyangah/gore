@@ -428,29 +428,26 @@ func (s *Session) importFile(src []byte, includingMain bool) error {
 
 	// remove func __gore_p(...)
 	// remove func main()
-	needFix := false
-	for i, decl := range f.Decls {
-		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
+	newDecls := make([]ast.Decl, 0, len(f.Decls))
+	for _, decl := range f.Decls {
+		if funcDecl, ok := decl.(*ast.FuncDecl); !ok {
+			newDecls = append(newDecls, decl)
+		} else {
 			if isNamedIdent(funcDecl.Name, "main") {
-				f.Decls = append(f.Decls[0:i], f.Decls[i+1:]...)
 				if includingMain {
 					// replace
 					s.mainFunc().Body = funcDecl.Body
 					s.mainBody = funcDecl.Body
 				}
-				// main() removed from this file, we may have to
-				// remove some unsed import's
-				needFix = true
+			} else if isNamedIdent(funcDecl.Name, "__gore_p") {
 				continue
-			}
-			if isNamedIdent(funcDecl.Name, "__gore_p") {
-				f.Decls = append(f.Decls[0:i], f.Decls[i+1:]...)
-				needFix = true
-				continue
+			} else {
+				newDecls = append(newDecls, decl)
 			}
 		}
 	}
-	if needFix {
+	if len(newDecls) != len(f.Decls) {
+		f.Decls = newDecls
 		quickfix.QuickFix(s.fset, []*ast.File{f})
 	}
 
